@@ -1,6 +1,6 @@
 {
   "latest": "1.5",
-  "url": "https://github.com/NOOR-ALDEEN/qr-attendance/releases/download/v1.5/QRAttendance_Setup_1.5.exe",
+  "url": "https://github.com/NOOR-ALDEEN/qr-attendance/releases/download/v1.5/QRAttendance_Setup_1.4.exe",
   "notes": "• إصلاح مهم: منع تسجيل حضور طالب باسم طالب آخر عند استيراد أكثر من قائمة.\n• رفض الطالب الذي ليس من مرحلة المحاضرة (يمكن تسجيله يدوياً).\n• يجب إعادة توليد بطاقات الطلاب بعد هذا التحديث.",
   "min_version": "1.5",
   "revoked": [],
