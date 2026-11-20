@@ -1,7 +1,7 @@
 /* نظام الحضور الذكي — نسخة الموبايل (PWA)
    © 2026 Dr. Noor Aldeen — جميع الحقوق محفوظة */
 'use strict';
-const APP_VERSION = '1.0';
+const APP_VERSION = '1.1';
 const CFG = window.APP_CONFIG || {};
 const AUTHOR = { name: CFG.authorName || 'Dr. Noor Aldeen', email: CFG.email || '' };
 const COPYRIGHT = `© 2026 ${AUTHOR.name} — جميع الحقوق محفوظة`;
@@ -318,10 +318,15 @@ const SCAN = {
       throw new Error('المتصفح لا يدعم الكاميرا. افتح الرابط من Chrome أو Safari عبر https');
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: false,
       video: { facingMode: { ideal: this.facing }, width: { ideal: 1280 }, height: { ideal: 720 } } });
-    video.srcObject = this.stream;
-    video.setAttribute('playsinline', ''); video.muted = true;
+    // iPhone (Safari) needs these set BEFORE the stream is attached
+    video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
+    video.setAttribute('autoplay', ''); video.setAttribute('muted', '');
+    video.muted = true; video.playsInline = true; video.autoplay = true;
     video.classList.toggle('mirror', this.facing === 'user');
-    await video.play();
+    video.srcObject = this.stream;
+    await new Promise(r => { if (video.readyState >= 1) r(); else video.onloadedmetadata = () => r(); setTimeout(r, 2500); });
+    try { await video.play(); }
+    catch (e) { const err = new Error('play-blocked'); err.name = 'PlayBlocked'; throw err; }
     if (!this.detector && 'BarcodeDetector' in window) {
       try {
         const f = await BarcodeDetector.getSupportedFormats();
@@ -393,7 +398,7 @@ function renderAttendance(m) {
   if (!s) return renderSetup(m);
   const d = X.parseISO(s.date);
   m.appendChild(el(`<div class="banner">● ${esc(s.course)}  |  ${esc(s.stage)}  |  ${esc(X.arabicDate(d))}</div>`));
-  m.appendChild(el(`<div class="cam" id="cam"><div id="camMsg">جارٍ تشغيل الكاميرا…</div><video id="video" playsinline muted></video>
+  m.appendChild(el(`<div class="cam" id="cam"><div id="camMsg">جارٍ تشغيل الكاميرا…</div><video id="video" playsinline webkit-playsinline muted autoplay></video>
     <div class="frame"><i></i><i></i><i></i><i></i></div>
     <div class="tools"><button id="flip" title="تبديل الكاميرا">🔄</button></div></div>`));
   m.appendChild(el(`<div class="result" id="result"><div class="ic">◎</div><div class="nm">جاهز للمسح</div><div class="ms">قرّب بطاقة الطالب من الكاميرا</div></div>`));
@@ -426,6 +431,9 @@ async function startCamera() {
     await SCAN.start(v);
     msg.textContent = '';
     keepAwake(true);
+    setTimeout(() => {               // stream on but no picture (seen on some iPhones) -> tap to restart
+      if ($('#video') === v && SCAN.stream && (!v.videoWidth || v.paused)) showTapToStart(msg, v);
+    }, 2500);
   } catch (e) {
     const MSG = {
       NotAllowedError: 'لم يُسمح باستخدام الكاميرا. اسمح للمتصفح بالوصول للكاميرا (من إعدادات الموبايل أو من رمز القفل بجانب الرابط) ثم اضغط إعادة المحاولة.',
@@ -434,10 +442,20 @@ async function startCamera() {
       OverconstrainedError: 'الكاميرا المطلوبة غير متوفرة، جرّب زر 🔄 لتبديل الكاميرا.',
       SecurityError: 'الكاميرا تعمل فقط عبر رابط آمن (https).',
     };
+    if (e && e.name === 'PlayBlocked') return showTapToStart(msg, v);
     const tip = (e && MSG[e.name]) || (e && /[\u0600-\u06FF]/.test(e.message || '') ? e.message : 'تعذّر تشغيل الكاميرا');
     msg.innerHTML = `⚠ ${esc(tip)}<br><br><button class="btn">إعادة المحاولة</button><br><br><span class="muted">يمكنك الاستمرار بالتسجيل اليدوي</span>`;
     $('button', msg).onclick = () => { unlockAudio(); startCamera(); };
   }
+}
+function showTapToStart(msg, v) {
+  msg.innerHTML = '<button class="btn green" style="position:relative;z-index:3">📷 اضغط هنا لتشغيل الكاميرا</button>';
+  $('button', msg).onclick = async () => {
+    unlockAudio();
+    try { await v.play(); } catch (e) { /* retry fully below */ }
+    if (!v.videoWidth || v.paused) return startCamera();
+    msg.textContent = '';
+  };
 }
 function renderSetup(m) {
   const sts = stages();

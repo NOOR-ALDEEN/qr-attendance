@@ -1,5 +1,5 @@
 /* Offline support: app files are cached; the QR reader library is cached on first use. */
-const CACHE = 'qra-mobile-v1.0';
+const CACHE = 'qra-mobile-v1.1';
 const SHELL = ['./', 'index.html', 'app.js', 'core.js', 'qr.js', 'xlsx.js', 'config.js', 'jszip.min.js',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 const JSQR = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
