@@ -1,7 +1,7 @@
 /* نظام الحضور الذكي — نسخة الموبايل (PWA)
    © 2026 Dr. Noor Aldeen — جميع الحقوق محفوظة */
 'use strict';
-const APP_VERSION = '1.1';
+const APP_VERSION = '1.2';
 const CFG = window.APP_CONFIG || {};
 const AUTHOR = { name: CFG.authorName || 'Dr. Noor Aldeen', email: CFG.email || '' };
 const COPYRIGHT = `© 2026 ${AUTHOR.name} — جميع الحقوق محفوظة`;
@@ -327,14 +327,37 @@ const SCAN = {
     await new Promise(r => { if (video.readyState >= 1) r(); else video.onloadedmetadata = () => r(); setTimeout(r, 2500); });
     try { await video.play(); }
     catch (e) { const err = new Error('play-blocked'); err.name = 'PlayBlocked'; throw err; }
+    this.draw();                       // show the picture first, independent of the QR reader
     if (!this.detector && 'BarcodeDetector' in window) {
       try {
         const f = await BarcodeDetector.getSupportedFormats();
         if (f.includes('qr_code')) this.detector = new BarcodeDetector({ formats: ['qr_code'] });
       } catch (e) { this.detector = null; }
     }
-    if (!this.detector) await loadJsQR();
+    if (!this.detector) {
+      try { await loadJsQR(); }
+      catch (e) { toast('⚠ تعذّر تحميل قارئ الرموز. افتح التطبيق مرة وأنت متصل بالإنترنت (التسجيل اليدوي يعمل)', 'bad'); }
+    }
     this.timer = setInterval(() => this.tick(), 130);
+  },
+  // iPhone sometimes shows a <video> as black: paint the camera picture on a canvas instead
+  draw() {
+    const view = document.getElementById('view'), v = this.video;
+    if (!this.stream || !view || !v) return;
+    if (v.readyState >= 2 && v.videoWidth) {
+      const box = view.parentElement.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const W = Math.round(box.width * dpr), H = Math.round(box.height * dpr);
+      if (view.width !== W || view.height !== H) { view.width = W; view.height = H; }
+      const ctx = view.getContext('2d');
+      const vw = v.videoWidth, vh = v.videoHeight, k = Math.max(W / vw, H / vh);
+      const dw = vw * k, dh = vh * k;
+      ctx.save();
+      if (this.facing === 'user') { ctx.translate(W, 0); ctx.scale(-1, 1); }
+      ctx.drawImage(v, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      ctx.restore();
+      this.frames = (this.frames || 0) + 1;
+    }
+    this.raf = requestAnimationFrame(() => this.draw());
   },
   async tick() {
     const v = this.video;
@@ -362,6 +385,9 @@ const SCAN = {
   async stop() {
     clearInterval(this.timer);
     this.timer = null;
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = null;
+    this.frames = 0;
     if (this.stream) this.stream.getTracks().forEach(t => t.stop());
     this.stream = null;
   },
@@ -398,7 +424,7 @@ function renderAttendance(m) {
   if (!s) return renderSetup(m);
   const d = X.parseISO(s.date);
   m.appendChild(el(`<div class="banner">● ${esc(s.course)}  |  ${esc(s.stage)}  |  ${esc(X.arabicDate(d))}</div>`));
-  m.appendChild(el(`<div class="cam" id="cam"><div id="camMsg">جارٍ تشغيل الكاميرا…</div><video id="video" playsinline webkit-playsinline muted autoplay></video>
+  m.appendChild(el(`<div class="cam" id="cam"><canvas id="view"></canvas><div id="camMsg">جارٍ تشغيل الكاميرا…</div><video id="video" playsinline webkit-playsinline muted autoplay></video>
     <div class="frame"><i></i><i></i><i></i><i></i></div>
     <div class="tools"><button id="flip" title="تبديل الكاميرا">🔄</button></div></div>`));
   m.appendChild(el(`<div class="result" id="result"><div class="ic">◎</div><div class="nm">جاهز للمسح</div><div class="ms">قرّب بطاقة الطالب من الكاميرا</div></div>`));
@@ -431,9 +457,12 @@ async function startCamera() {
     await SCAN.start(v);
     msg.textContent = '';
     keepAwake(true);
-    setTimeout(() => {               // stream on but no picture (seen on some iPhones) -> tap to restart
-      if ($('#video') === v && SCAN.stream && (!v.videoWidth || v.paused)) showTapToStart(msg, v);
-    }, 2500);
+    setTimeout(() => {               // stream on but no picture -> tap to (re)start, with a diagnostic line
+      if ($('#video') === v && SCAN.stream && (!SCAN.frames || !v.videoWidth || v.paused)) {
+        showTapToStart(msg, v);
+        msg.appendChild(el(`<div class="muted" style="margin-top:8px;color:#94A3B8">تشخيص: ${v.videoWidth}x${v.videoHeight} • حالة ${v.readyState} • ${v.paused ? 'متوقف' : 'يعمل'} • إطارات ${SCAN.frames || 0}</div>`));
+      }
+    }, 3000);
   } catch (e) {
     const MSG = {
       NotAllowedError: 'لم يُسمح باستخدام الكاميرا. اسمح للمتصفح بالوصول للكاميرا (من إعدادات الموبايل أو من رمز القفل بجانب الرابط) ثم اضغط إعادة المحاولة.',
@@ -454,6 +483,7 @@ function showTapToStart(msg, v) {
     unlockAudio();
     try { await v.play(); } catch (e) { /* retry fully below */ }
     if (!v.videoWidth || v.paused) return startCamera();
+    if (!SCAN.raf) SCAN.draw();
     msg.textContent = '';
   };
 }
