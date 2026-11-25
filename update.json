@@ -1,6 +1,6 @@
 {
   "latest": "1.8",
-  "url": "https://github.com/NOOR-ALDEEN/qr-attendance/releases/download/v1.8/QRAttendance_Setup_1.8.exe",
+  "url": "https://github.com/NOOR-ALDEEN/qr-attendance/releases/download/v2.0/QRAttendance_Setup_2.1.exe",
   "notes": "• اختصارات لوحة المفاتيح: Ctrl+A تحديد الكل، Ctrl+C نسخ، Ctrl+V لصق، Ctrl+X قص، Delete حذف المحدد (تعمل مع الكيبورد العربي).\n• قائمة بالزر الأيمن للفأرة في الجداول وخانات الكتابة.\n• البطاقة بالاسم والمرحلة فقط بدون أي رقم.",
   "min_version": "1.7",
   "revoked": [],
